@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
 var fs = require('fs');
+var path = require('path');
 var program = require('commander');
 var through2 = require('through2');
 var extend = require('xtend');
+var mkdirp = require('mkdirp');
 var htmlmin = require('html-minifier');
 
 program
-    .usage('[options] [file]')
-    .option('-o, --output <file>', 'Write output to this file instead of stdout')
+    .usage('[options] [file|folder]')
+    .option('-o, --output <file|folder>', 'Write output to this file or folder instead of stdout')
     .option('-u, --unsafe', 'Enable unsafe compression options')
     .parse(process.argv);
 
@@ -44,18 +46,72 @@ var minify = through2(function (chunk, enc, cb) {
     this.push(content);
 });
 
-var src;
-if (program.args.length) {
-    src = fs.createReadStream(program.args[0], { encoding: 'utf8' });
-} else {
-    src = process.stdin;
+function getInput (args, callback) {
+    if (args.length) {
+        fs.stat(args[0], function (error, stats) {
+            if (!stats) {
+                throw new Error("ENOENT, no such file or directory '" + args[0] + "'");
+            }
+
+            if (stats.isDirectory()) {
+                fs.readdir(args[0], function (error, files) {
+                    var inputStreams = files.filter(function (file) {
+                        return path.extname(file) === '.html';
+                    }).map(function (file) {
+                        return fs.createReadStream(path.join(args[0], file));
+                    });
+
+                    callback(undefined, inputStreams);
+                });
+            } else {
+                callback(undefined, fs.createReadStream(args[0]));
+            }
+        });
+    } else {
+        callback(undefined, process.stdin);
+    }
 }
 
-var dest;
-if (program.output) {
-    dest = fs.createWriteStream(program.output);
-} else {
-    dest = process.stdout;
+function getDest (filePath, outputToDir, callback) {
+    if (outputToDir && program.output) {
+        var dest = path.join(program.output, path.basename(filePath));
+
+        mkdirp(program.output, function (error) {
+            if (error)
+                throw error;
+
+            callback(undefined, fs.createWriteStream(dest));
+        });
+    } else if (program.output) {
+        callback(undefined, fs.createWriteStream(program.output));
+    } else {
+        callback(undefined, process.stdout);
+    }
 }
 
-src.pipe(minify).pipe(dest);
+function writeOutput (streams, outputToDir) {
+    streams.forEach(function (stream) {
+        var filePath = stream.path || 'htmlmin.html';
+
+        getDest(filePath, outputToDir, function (error, dest) {
+            stream.pipe(minify).pipe(dest);
+        });
+    });
+}
+
+getInput(program.args, function (error, src) {
+    var inputIsDir = Array.isArray(src);
+    var outputIsDir, outputToDir;
+
+    src = !inputIsDir ? [src] : src;
+
+    if (program.output) {
+        fs.stat(program.output, function (error, stats) {
+            outputIsDir = stats && stats.isDirectory();
+            outputToDir = inputIsDir || outputIsDir;
+            writeOutput(src, outputToDir);
+        });
+    } else {
+        writeOutput(src);
+    }
+});
