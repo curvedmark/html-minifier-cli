@@ -10,6 +10,7 @@ program
     .usage('[options] [file]')
     .option('-o, --output <file>', 'Write output to this file instead of stdout')
     .option('-u, --unsafe', 'Enable unsafe compression options')
+    .option('-c, --config <file>', 'json config to extend configuration')
     .parse(process.argv);
 
 var options = {
@@ -24,15 +25,28 @@ var options = {
     removeEmptyAttributes: true,
     removeOptionalTags: true
 };
-
 if (program.unsafe) {
-    extend(options, {
+    options = extend(options, {
         removeIgnored: true,
         removeEmptyElements: true,
         removeScriptTypeAttributes: true,
         removeStyleLinkTypeAttributes: true,
         caseSensitive: true
     });
+}
+
+if (program.config) {
+    if (fs.existsSync(program.config)) {
+        var file = fs.readFileSync(program.config);
+        try {
+            var json = JSON.parse(file);
+            options = extend(options, json);
+        } catch(e) {
+            console.error('invalid json in file', program.config, e);
+        }
+    } else {
+        console.error('configuration file not fount at ', program.config);
+    }
 }
 
 var content = '';
