@@ -10,6 +10,8 @@ program
     .usage('[options] [file]')
     .option('-o, --output <file>', 'Write output to this file instead of stdout')
     .option('-u, --unsafe', 'Enable unsafe compression options')
+    .option('-j, --minify-js', 'Enable JS minification')
+    .option('-c, --minify-css', 'Enable CSS minification')
     .parse(process.argv);
 
 var options = {
@@ -25,8 +27,20 @@ var options = {
     removeOptionalTags: true
 };
 
+if (program.minifyJs) {
+    Object.assign(options, {
+        minifyJS: true,
+    });
+}
+
+if (program.minifyCss) {
+    Object.assign(options, {
+        minifyCSS: true,
+    });
+}
+
 if (program.unsafe) {
-    extend(options, {
+    Object.assign(options, {
         removeIgnored: true,
         removeEmptyElements: true,
         removeScriptTypeAttributes: true,
