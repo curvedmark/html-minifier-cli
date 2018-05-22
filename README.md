@@ -11,3 +11,7 @@ Command-line interface for [html-minifier](http://kangax.github.io/html-minifier
 `htmlmin -o index.min.html index.html`
 
 See `htmlmin -h` for more usage.
+
+## Development
+
+Run `npm link` to install local CLI changes.
